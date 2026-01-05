@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "438061952630",
+    "project_id": "smart-face-attendance-e0152",
+    "storage_bucket": "smart-face-attendance-e0152.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:438061952630:android:a61b2f21aac29bd5557957",
+        "android_client_info": {
+          "package_name": "com.shreyapoojary.smartfaceattendance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBx1-SJR2lREcbw_pJxX4K-X_fGt91RFkc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
