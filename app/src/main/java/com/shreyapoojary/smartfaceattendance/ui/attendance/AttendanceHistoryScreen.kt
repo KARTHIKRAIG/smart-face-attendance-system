@@ -20,40 +20,40 @@ data class AttendanceItem(
 fun AttendanceHistoryScreen(
     onBack: () -> Unit
 ) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
     val db = FirebaseFirestore.getInstance()
 
-    var attendanceList by remember { mutableStateOf<List<AttendanceItem>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var attendanceList by remember { mutableStateOf<List<AttendanceItem>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
-        db.collection("attendance")
+    LaunchedEffect(uid) {
+        if (uid == null) {
+            loading = false
+            return@LaunchedEffect
+        }
+
+        println("Reading attendance for UID: $uid")
+
+        db.collection("users")
+            .document(uid)
+            .collection("attendance")
+            .orderBy("timestamp")
             .get()
-            .addOnSuccessListener { datesSnapshot ->
+            .addOnSuccessListener { result ->
 
-                val tempList = mutableListOf<AttendanceItem>()
-
-                datesSnapshot.documents.forEach { dateDoc ->
-                    val date = dateDoc.id
-
-                    db.collection("attendance")
-                        .document(date)
-                        .collection("students")
-                        .document(uid)
-                        .get()
-                        .addOnSuccessListener { studentDoc ->
-                            if (studentDoc.exists()) {
-                                tempList.add(
-                                    AttendanceItem(
-                                        date = date,
-                                        time = studentDoc.getString("time") ?: "--",
-                                        status = studentDoc.getString("status") ?: "Absent"
-                                    )
-                                )
-                                attendanceList = tempList.sortedByDescending { it.date }
-                            }
-                        }
+                attendanceList = result.documents.map {
+                    AttendanceItem(
+                        date = it.id,
+                        time = it.getString("time") ?: "--",
+                        status = it.getString("status") ?: "Absent"
+                    )
                 }
+
+                println("Attendance records found: ${attendanceList.size}")
+                loading = false
+            }
+            .addOnFailureListener {
+                println("Error loading attendance: ${it.message}")
                 loading = false
             }
     }
@@ -69,31 +69,37 @@ fun AttendanceHistoryScreen(
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        if (loading) {
-            CircularProgressIndicator()
-        } else if (attendanceList.isEmpty()) {
-            Text("No attendance records found")
-        } else {
-            LazyColumn {
-                items(attendanceList) { item ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Date: ${item.date}")
-                            Text("Time: ${item.time}")
-                            Text("Status: ${item.status}")
+        when {
+            loading -> {
+                CircularProgressIndicator()
+            }
+
+            attendanceList.isEmpty() -> {
+                Text("No attendance records found")
+            }
+
+            else -> {
+                LazyColumn {
+                    items(attendanceList) { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Date: ${item.date}")
+                                Text("Time: ${item.time}")
+                                Text("Status: ${item.status}")
+                            }
                         }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(onClick = onBack) {
             Text("Back")

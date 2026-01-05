@@ -51,15 +51,16 @@ fun FaceMatchScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // 📷 CAMERA PREVIEW
+        /* ================= CAMERA PREVIEW ================= */
+
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 val previewView = PreviewView(ctx)
 
-                val providerFuture = ProcessCameraProvider.getInstance(ctx)
-                providerFuture.addListener({
-                    val provider = providerFuture.get()
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
 
                     val preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
@@ -67,8 +68,8 @@ fun FaceMatchScreen(
 
                     imageCapture = ImageCapture.Builder().build()
 
-                    provider.unbindAll()
-                    provider.bindToLifecycle(
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_FRONT_CAMERA,
                         preview,
@@ -80,7 +81,8 @@ fun FaceMatchScreen(
             }
         )
 
-        // 📸 VERIFY FACE BUTTON
+        /* ================= VERIFY BUTTON ================= */
+
         Button(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -93,15 +95,17 @@ fun FaceMatchScreen(
                     "match_${System.currentTimeMillis()}.jpg"
                 )
 
-                val options =
+                val outputOptions =
                     ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
                 capture.takePicture(
-                    options,
+                    outputOptions,
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageSavedCallback {
 
-                        override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                        override fun onImageSaved(
+                            output: ImageCapture.OutputFileResults
+                        ) {
 
                             detectFace(context, photoFile) { faceFound ->
                                 if (!faceFound) {
@@ -113,7 +117,8 @@ fun FaceMatchScreen(
                                     return@detectFace
                                 }
 
-                                // 🧠 LIVE EMBEDDING
+                                /* -------- LIVE EMBEDDING -------- */
+
                                 val bitmap =
                                     BitmapFactory.decodeFile(photoFile.absolutePath)
 
@@ -127,18 +132,19 @@ fun FaceMatchScreen(
 
                                 val db = FirebaseFirestore.getInstance()
 
-                                // 🔍 GET STORED EMBEDDING
+                                /* -------- STORED EMBEDDING -------- */
+
                                 db.collection("face_encodings")
                                     .document(uid)
                                     .get()
                                     .addOnSuccessListener { encodingDoc ->
 
                                         val stored =
-                                            encodingDoc.get("embedding") as List<Double>
+                                            encodingDoc.get("embedding") as? List<Double>
+                                                ?: return@addOnSuccessListener
 
                                         val storedEmbedding =
-                                            stored.map { it.toFloat() }
-                                                .toFloatArray()
+                                            stored.map { it.toFloat() }.toFloatArray()
 
                                         val matched = FaceMatcher.isMatch(
                                             liveEmbedding,
@@ -154,7 +160,8 @@ fun FaceMatchScreen(
                                             return@addOnSuccessListener
                                         }
 
-                                        // 🔐 CHECK ROLE
+                                        /* -------- ROLE CHECK -------- */
+
                                         db.collection("users")
                                             .document(uid)
                                             .get()
@@ -166,7 +173,7 @@ fun FaceMatchScreen(
                                                 if (role != "student") {
                                                     Toast.makeText(
                                                         context,
-                                                        "⚠️ Attendance is only for students",
+                                                        "Attendance allowed only for students",
                                                         Toast.LENGTH_LONG
                                                     ).show()
                                                     return@addOnSuccessListener
@@ -185,13 +192,18 @@ fun FaceMatchScreen(
                                                     Locale.getDefault()
                                                 ).format(Date())
 
+                                                println(
+                                                    "Trying to read attendance for UID: $uid on date $today"
+                                                )
+
                                                 val attendanceRef = db
                                                     .collection("attendance")
                                                     .document(today)
                                                     .collection("students")
                                                     .document(uid)
 
-                                                // 🔒 DUPLICATE CHECK
+                                                /* -------- DUPLICATE CHECK -------- */
+
                                                 attendanceRef.get()
                                                     .addOnSuccessListener { doc ->
 
@@ -202,22 +214,33 @@ fun FaceMatchScreen(
                                                                 Toast.LENGTH_LONG
                                                             ).show()
                                                         } else {
+
                                                             val attendanceData = mapOf(
-                                                                "uid" to uid,
-                                                                "name" to studentName,
+                                                                "date" to today,
                                                                 "time" to time,
                                                                 "status" to "Present",
                                                                 "timestamp" to System.currentTimeMillis()
                                                             )
 
-                                                            attendanceRef.set(attendanceData)
-                                                                .addOnSuccessListener {
-                                                                    Toast.makeText(
-                                                                        context,
-                                                                        "✅ Attendance marked for $studentName",
-                                                                        Toast.LENGTH_LONG
-                                                                    ).show()
-                                                                }
+                                                            // ✅ GLOBAL (TEACHER)
+                                                            db.collection("attendance")
+                                                                .document(today)
+                                                                .collection("students")
+                                                                .document(uid)
+                                                                .set(attendanceData)
+
+                                                            // ✅ USER (STUDENT HISTORY)
+                                                            db.collection("users")
+                                                                .document(uid)
+                                                                .collection("attendance")
+                                                                .document(today)
+                                                                .set(attendanceData)
+
+                                                            Toast.makeText(
+                                                                context,
+                                                                "✅ Attendance marked for $studentName",
+                                                                Toast.LENGTH_LONG
+                                                            ).show()
                                                         }
                                                     }
                                             }
@@ -239,7 +262,8 @@ fun FaceMatchScreen(
             Text("Verify Face")
         }
 
-        // 🔙 BACK BUTTON
+        /* ================= BACK BUTTON ================= */
+
         Button(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -258,7 +282,10 @@ private fun detectFace(
     imageFile: File,
     onResult: (Boolean) -> Unit
 ) {
-    val image = InputImage.fromFilePath(context, Uri.fromFile(imageFile))
+    val image = InputImage.fromFilePath(
+        context,
+        Uri.fromFile(imageFile)
+    )
 
     val detector = FaceDetection.getClient(
         FaceDetectorOptions.Builder()
@@ -267,6 +294,10 @@ private fun detectFace(
     )
 
     detector.process(image)
-        .addOnSuccessListener { onResult(it.isNotEmpty()) }
-        .addOnFailureListener { onResult(false) }
+        .addOnSuccessListener { faces ->
+            onResult(faces.isNotEmpty())
+        }
+        .addOnFailureListener {
+            onResult(false)
+        }
 }

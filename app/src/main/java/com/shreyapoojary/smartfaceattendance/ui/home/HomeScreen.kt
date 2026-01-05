@@ -17,7 +17,7 @@ fun HomeScreen(
     onVerifyFace: () -> Unit,
     onViewAttendance: () -> Unit,
     onAdminDashboard: () -> Unit,
-    onAboutApp: () -> Unit          // ✅ ADDED
+    onAboutApp: () -> Unit
 ) {
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
@@ -87,6 +87,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // ✅ STUDENT ONLY
             Button(onClick = onViewAttendance) {
                 Text("My Attendance History")
             }
@@ -96,8 +97,6 @@ fun HomeScreen(
 
         /* ================= TEACHER / ADMIN UI ================= */
         if (role == "teacher" || role == "admin") {
-
-
 
             Button(onClick = onAdminDashboard) {
                 Text("Teacher Dashboard")
